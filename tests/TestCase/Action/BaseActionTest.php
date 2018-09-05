@@ -1,6 +1,10 @@
 <?php
 namespace Crud\TestCase\Action;
 
+use Cake\Http\Exception\BadRequestException;
+use Cake\Http\Exception\MethodNotAllowedException;
+use Cake\Http\Exception\NotFoundException;
+use Cake\Http\ServerRequest;
 use Cake\ORM\TableRegistry;
 use Crud\Event\Subject;
 use Crud\TestSuite\TestCase;
@@ -17,7 +21,7 @@ class BaseActionTest extends TestCase
     {
         parent::setUp();
 
-        $this->Request = $this->getMockBuilder('Cake\Network\Request')
+        $this->Request = $this->getMockBuilder(ServerRequest::class)
             ->getMock();
         $this->Controller = $this->getMockBuilder('Cake\Controller\Controller')
             ->setMethods(['set'])
@@ -36,7 +40,7 @@ class BaseActionTest extends TestCase
         $this->Controller->Crud = $this->Crud;
         $this->Controller->modelClass = 'CrudExamples';
         $this->Controller->CrudExamples = \Cake\ORM\TableRegistry::get('Crud.CrudExamples');
-        $this->Controller->CrudExamples->alias('MyModel');
+        $this->Controller->CrudExamples->setAlias('MyModel');
 
         $this->actionClassName = $this->getMockClass('Crud\Action\BaseAction', ['_handle']);
         $this->ActionClass = new $this->actionClassName($this->Controller);
@@ -58,7 +62,7 @@ class BaseActionTest extends TestCase
 
     protected function _configureAction($action)
     {
-        $action->config([
+        $action->setConfig([
             'action' => 'add',
             'enabled' => true,
             'findMethod' => 'first',
@@ -104,7 +108,7 @@ class BaseActionTest extends TestCase
         $ActionClass = new $this->actionClassName($this->Controller, $expected);
         // This is injected by the CrudAction, not technically a setting
         $expected['action'] = 'add';
-        $actual = $ActionClass->config();
+        $actual = $ActionClass->getConfig();
         $this->assertEquals($expected, $actual, 'It was not possible to override all default settings.');
     }
 
@@ -127,13 +131,13 @@ class BaseActionTest extends TestCase
      */
     public function testEnabledActionWorks()
     {
-        $Request = $this->getMockBuilder('Cake\Network\Request')
-            ->setMethods(['method'])
+        $Request = $this->getMockBuilder(ServerRequest::class)
+            ->setMethods(['getMethod'])
             ->getMock();
-        $Request->action = 'add';
+        $Request = $Request->withParam('action', 'add');
         $Request
             ->expects($this->once())
-            ->method('method')
+            ->method('getMethod')
             ->will($this->returnValue('GET'));
 
         $Action = $this->getMockBuilder('Crud\Action\BaseAction')
@@ -151,10 +155,10 @@ class BaseActionTest extends TestCase
             ->will($this->returnValue(true));
 
         $this->_configureAction($Action);
-        $Action->config('action', 'add');
+        $Action->setConfig('action', 'add');
 
         $expected = true;
-        $actual = $Action->config('enabled');
+        $actual = $Action->getConfig('enabled');
         $this->assertSame($expected, $actual, 'The action is not enabled by default');
 
         $expected = true;
@@ -175,12 +179,12 @@ class BaseActionTest extends TestCase
         $i = 0;
 
         $Action = $this->getMockBuilder('Crud\Action\BaseAction')
-            ->setMethods(['config'])
+            ->setMethods(['setConfig'])
             ->setConstructorArgs([$this->Controller])
             ->getMock();
         $Action
             ->expects($this->at($i++))
-            ->method('config', 'enabled was not changed to false by config()')
+            ->method('setConfig', 'enabled was not changed to false by config()')
             ->with('enabled', false);
 
         $Action->disable();
@@ -199,12 +203,12 @@ class BaseActionTest extends TestCase
         $i = 0;
 
         $Action = $this->getMockBuilder('Crud\Action\BaseAction')
-            ->setMethods(['config'])
+            ->setMethods(['setConfig'])
             ->setConstructorArgs([$this->Controller])
             ->getMock();
         $Action
             ->expects($this->at($i++))
-            ->method('config', 'enabled was not changed to false by config()')
+            ->method('setConfig', 'enabled was not changed to false by config()')
             ->with('enabled', true);
 
         $Action->enable();
@@ -257,8 +261,8 @@ class BaseActionTest extends TestCase
                 ]
             );
 
-        $this->ActionClass->config('name', 'test');
-        $this->ActionClass->config('messages', [
+        $this->ActionClass->setConfig('name', 'test');
+        $this->ActionClass->setConfig('messages', [
             'success' => ['text' => 'Ahoy', 'key' => 'custom']
         ]);
         $this->ActionClass->setFlash('success', $Subject);
@@ -277,18 +281,18 @@ class BaseActionTest extends TestCase
             'validate' => 'first',
             'atomic' => true
         ];
-        $actual = $CrudAction->config('saveOptions');
+        $actual = $CrudAction->getConfig('saveOptions');
         $this->assertEquals($expected, $actual);
 
-        $CrudAction->config('saveOptions.atomic', true);
+        $CrudAction->setConfig('saveOptions.atomic', true);
         $expected = [
             'validate' => 'first',
             'atomic' => true
         ];
-        $actual = $CrudAction->config('saveOptions');
+        $actual = $CrudAction->getConfig('saveOptions');
         $this->assertEquals($expected, $actual);
 
-        $CrudAction->config('saveOptions', [
+        $CrudAction->setConfig('saveOptions', [
             'fieldList' => ['hello']
         ]);
         $expected = [
@@ -296,7 +300,7 @@ class BaseActionTest extends TestCase
             'atomic' => true,
             'fieldList' => ['hello']
         ];
-        $actual = $CrudAction->config('saveOptions');
+        $actual = $CrudAction->getConfig('saveOptions');
         $this->assertEquals($expected, $actual);
     }
 
@@ -330,7 +334,7 @@ class BaseActionTest extends TestCase
      */
     public function testBadMessageConfig()
     {
-        $this->Crud->config('messages.badConfig', ['foo' => 'bar']);
+        $this->Crud->setConfig('messages.badConfig', ['foo' => 'bar']);
         $this->ActionClass->message('badConfig');
     }
 
@@ -341,7 +345,7 @@ class BaseActionTest extends TestCase
      */
     public function testInheritedSimpleMessage()
     {
-        $this->Crud->config('messages.simple', 'Simple message');
+        $this->Crud->setConfig('messages.simple', 'Simple message');
 
         $expected = [
             'element' => 'default',
@@ -365,8 +369,8 @@ class BaseActionTest extends TestCase
      */
     public function testOverridenSimpleMessage()
     {
-        $this->Crud->config('messages.simple', 'Simple message');
-        $this->ActionClass->config('messages.simple', 'Overridden message');
+        $this->Crud->setConfig('messages.simple', 'Simple message');
+        $this->ActionClass->setConfig('messages.simple', 'Overridden message');
 
         $expected = [
             'element' => 'default',
@@ -390,7 +394,7 @@ class BaseActionTest extends TestCase
      */
     public function testSimpleMessage()
     {
-        $this->ActionClass->config('messages.simple', 'Simple message');
+        $this->ActionClass->setConfig('messages.simple', 'Simple message');
 
         $expected = [
             'element' => 'default',
@@ -414,7 +418,7 @@ class BaseActionTest extends TestCase
      */
     public function testSimpleMessageWithPlaceholders()
     {
-        $this->Crud->config('messages.simple', 'Simple message with id "{id}"');
+        $this->Crud->setConfig('messages.simple', 'Simple message with id "{id}"');
 
         $expected = [
             'element' => 'default',
@@ -440,7 +444,7 @@ class BaseActionTest extends TestCase
     {
         $expected = [
             'code' => 400,
-            'class' => 'Cake\Network\Exception\BadRequestException',
+            'class' => BadRequestException::class,
             'element' => 'default',
             'params' => [
                 'class' => 'message invalidId',
@@ -464,7 +468,7 @@ class BaseActionTest extends TestCase
     {
         $expected = [
             'code' => 404,
-            'class' => 'Cake\Network\Exception\NotFoundException',
+            'class' => NotFoundException::class,
             'element' => 'default',
             'params' => [
                 'class' => 'message recordNotFound',
@@ -488,7 +492,7 @@ class BaseActionTest extends TestCase
     {
         $expected = [
             'code' => 405,
-            'class' => 'Cake\Network\Exception\MethodNotAllowedException',
+            'class' => MethodNotAllowedException::class,
             'element' => 'default',
             'params' => [
                 'class' => 'message badRequestMethod',
@@ -514,22 +518,22 @@ class BaseActionTest extends TestCase
     public function testHandle()
     {
         $Action = $this->getMockBuilder('Crud\Action\BaseAction')
-            ->setMethods(['_request', '_get', 'config'])
+            ->setMethods(['_request', '_get', 'getConfig'])
             ->setConstructorArgs([$this->Controller])
             ->getMock();
 
-        $Request = $this->getMockBuilder('Cake\Network\Request')
-            ->setMethods(['method'])
+        $Request = $this->getMockBuilder(ServerRequest::class)
+            ->setMethods(['getMethod'])
             ->getMock();
         $Request
             ->expects($this->once())
-            ->method('method')
+            ->method('getMethod')
             ->will($this->returnValue('GET'));
 
         $i = 0;
         $Action
             ->expects($this->at($i++))
-            ->method('config')
+            ->method('getConfig')
             ->with('enabled')
             ->will($this->returnValue(true));
         $Action
@@ -554,14 +558,14 @@ class BaseActionTest extends TestCase
     public function testHandleDisabled()
     {
         $Action = $this->getMockBuilder('Crud\Action\BaseAction')
-            ->setMethods(['_handle', '_get', 'config'])
+            ->setMethods(['_handle', '_get', 'getConfig'])
             ->setConstructorArgs([$this->Controller])
             ->getMock();
 
         $i = 0;
         $Action
             ->expects($this->at($i++))
-            ->method('config')
+            ->method('getConfig')
             ->with('enabled')
             ->will($this->returnValue(false));
         $Action
@@ -582,22 +586,22 @@ class BaseActionTest extends TestCase
     public function testGenericHandle()
     {
         $Action = $this->getMockBuilder('Crud\Action\BaseAction')
-            ->setMethods(['_handle', '_request', 'config'])
+            ->setMethods(['_handle', '_request', 'getConfig'])
             ->setConstructorArgs([$this->Controller])
             ->getMock();
 
-        $Request = $this->getMockBuilder('Cake\Network\Request')
-            ->setMethods(['method'])
+        $Request = $this->getMockBuilder(ServerRequest::class)
+            ->setMethods(['getMethod'])
             ->getMock();
         $Request
             ->expects($this->once())
-            ->method('method')
+            ->method('getMethod')
             ->will($this->returnValue('GET'));
 
         $i = 0;
         $Action
             ->expects($this->at($i++))
-            ->method('config')
+            ->method('getConfig')
             ->with('enabled')
             ->will($this->returnValue(true));
         $Action
@@ -617,28 +621,28 @@ class BaseActionTest extends TestCase
      * Test that calling handle will not invoke _handle
      * when the action is disabled
      *
-     * @expectedException Cake\Network\Exception\NotImplementedException
+     * @expectedException Cake\Http\Exception\NotImplementedException
      * @return void
      */
     public function testHandleException()
     {
         $Action = $this->getMockBuilder('Crud\Action\BaseAction')
-            ->setMethods(['_request', 'config'])
+            ->setMethods(['_request', 'getConfig'])
             ->setConstructorArgs([$this->Controller])
             ->getMock();
 
-        $Request = $this->getMockBuilder('Cake\Network\Request')
-            ->setMethods(['method'])
+        $Request = $this->getMockBuilder(ServerRequest::class)
+            ->setMethods(['getMethod'])
             ->getMock();
         $Request
             ->expects($this->once())
-            ->method('method')
+            ->method('getMethod')
             ->will($this->returnValue('GET'));
 
         $i = 0;
         $Action
             ->expects($this->at($i++))
-            ->method('config')
+            ->method('getConfig')
             ->with('enabled')
             ->will($this->returnValue(true));
         $Action

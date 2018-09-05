@@ -1,6 +1,7 @@
 <?php
 namespace Crud\Test\TestCase\Listener;
 
+use Cake\Http\ServerRequest;
 use Cake\Utility\Hash;
 use Crud\TestSuite\TestCase;
 
@@ -46,7 +47,7 @@ class RedirectListenerTest extends TestCase
 
         $listener->setup();
 
-        $result = $listener->config('readers');
+        $result = $listener->getConfig('readers');
 
         $result['request'] = array_keys($result['request']);
         $result['entity'] = array_keys($result['entity']);
@@ -150,8 +151,7 @@ class RedirectListenerTest extends TestCase
         $listener->setup();
 
         $subject = new \Crud\Event\Subject();
-        $request = new \Cake\Network\Request();
-        $request->params['action'] = 'index';
+        $request = (new ServerRequest())->withParam('action', 'index');
 
         $listener->expects($this->any())->method('_request')->will($this->returnValue($request));
 
@@ -179,8 +179,7 @@ class RedirectListenerTest extends TestCase
         $listener->setup();
 
         $subject = new \Crud\Event\Subject();
-        $request = new \Cake\Network\Request();
-        $request->data = ['hello' => 'world'];
+        $request = (new ServerRequest())->withData('hello', 'world');
 
         $listener->expects($this->any())->method('_request')->will($this->returnValue($request));
 
@@ -208,8 +207,7 @@ class RedirectListenerTest extends TestCase
         $listener->setup();
 
         $subject = new \Crud\Event\Subject();
-        $request = new \Cake\Network\Request();
-        $request->query = ['hello' => 'world'];
+        $request = (new ServerRequest())->withQueryParams(['hello' => 'world']);
 
         $listener->expects($this->any())->method('_request')->will($this->returnValue($request));
 
@@ -404,10 +402,10 @@ class RedirectListenerTest extends TestCase
      */
     public function dataProviderGetUrl()
     {
-        $Request = new \Cake\Network\Request;
-        $Request->params['action'] = 'index';
-        $Request->query['parent_id'] = 10;
-        $Request->data['epic'] = 'jippi';
+        $Request = new ServerRequest;
+        $Request = $Request->withParam('action', 'index')
+            ->withQueryParams(['parent_id' => 10])
+            ->withData('epic', 'jippi');
 
         $Model = new \Cake\ORM\Entity();
         $Model->id = 69;
@@ -463,7 +461,7 @@ class RedirectListenerTest extends TestCase
             ->getMock();
 
         if (empty($subject->request)) {
-            $request = new \Cake\Network\Request();
+            $request = new ServerRequest();
         } else {
             $request = $subject->request;
         }

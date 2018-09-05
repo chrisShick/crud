@@ -19,12 +19,12 @@ class ApiPaginationListener extends BaseListener
      *
      * We attach at priority 10 so normal bound events can run before us
      *
-     * @return array|void
+     * @return array|null
      */
     public function implementedEvents()
     {
         if (!$this->_checkRequestType('api')) {
-            return;
+            return null;
         }
 
         return [
@@ -42,18 +42,18 @@ class ApiPaginationListener extends BaseListener
     {
         $request = $this->_request();
 
-        if (empty($request->paging)) {
+        if (empty($request->getParam('paging'))) {
             return;
         }
 
         $controller = $this->_controller();
         list(, $modelClass) = pluginSplit($controller->modelClass);
 
-        if (!array_key_exists($modelClass, $request->paging)) {
+        if (!array_key_exists($modelClass, $request->getParam('paging'))) {
             return;
         }
 
-        $pagination = $request->paging[$modelClass];
+        $pagination = $request->getParam('paging')[$modelClass];
         if (empty($pagination)) {
             return;
         }
@@ -68,6 +68,6 @@ class ApiPaginationListener extends BaseListener
         ];
 
         $controller->set('pagination', $paginationResponse);
-        $this->_action()->config('serialize.pagination', 'pagination');
+        $this->_action()->setConfig('serialize.pagination', 'pagination');
     }
 }
